@@ -8,15 +8,15 @@ export const ParentLogin = async(req, res, next) => {
         })
     }
     try{
-        const [rows] = await pool.query('SELECT parent_id, area_id, email, nic FROM midwife WHERE nic = ? AND password = ? LIMIT 1', [nic, password]);
+        const [rows] = await pool.query('SELECT guardian_nic, area_id, email FROM parent WHERE guardian_nic = ? AND password = ? LIMIT 1', [nic, password]);
         
         try{
             if(rows.length > 0) {
-                req.session.parent = {parent_id: rows[0], area_id: rows[0].area_id };
+                req.session.parent = {nic: rows[0], area_id: rows[0].area_id };
                 req.session.save();
                 return res.status(200).json({
                     message: 'Login success',
-                    data: req.session.parent.parent_id
+                    data: req.session.parent.nic
                 })
             }
             else {
@@ -68,7 +68,7 @@ export const CheckParentAuth = async(req, res, next) => {
 
 export const GetAllChilds = async(req, res, next) => {
     try{
-        const [rows] = await pool.query('SELECT parent.*, parent.parent_id FROM parent inner join child on parent.parent_id = child.parent_id where parent.parent_id = ?', [req.session.parent.parent_id]);
+        const [rows] = await pool.query('SELECT parent.*, parent.guardian_nic FROM parent inner join child on parent.guardian_nic = child.parent_id where parent.guardian_nic = ?', [req.session.parent.guardian_nic]);
         const rests = rows.map((row) => {
             const { password, ...rest } = row;
             return rest;

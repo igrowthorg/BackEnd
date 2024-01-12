@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import session from 'express-session';
-import { ParentLogin, ParentLogout, CheckParentAuth } from '../methods/ParentMethod';
+import { ParentLogin, ParentLogout, CheckParentAuth } from '../methods/ParentMethod.js';
 
 router.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
@@ -39,3 +39,5 @@ router.post('/logout', ParentLogout);
 router.get('/check-auth', CheckParentAuth);
 
 router.use(checkAuth);
+
+export default router;
