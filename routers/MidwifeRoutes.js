@@ -1,7 +1,8 @@
 import express from 'express';
 const router = express.Router();
 import session from 'express-session';
-import { AddChild, AddChildGrowthDetail, CreateParent, GetAllChild, GetChildByID, GetChildGrowthDetailByID, GetGrowthDetailsChart, GetLastChildGrowthDetail, GetParentByID, GetSDMeasurements, GetVaccineTableForChild, MidwifeLogin, MidwifeLogout, UpdateChild, VaccineGetByChild, getAllParents } from '../methods/MidwifeMethod.js';
+import multer from 'multer';
+import { AddChild, AddChildGrowthDetail, AddNews, CheckMidwifeAuth, CreateParent, DeleteNews, GetAllChild, GetAllVaccine, GetChildByID, GetChildGrowthDetailByID, GetGrowthDetailsChart, GetLastChildGrowthDetail, GetNews, GetNewsByID, GetParentByID, GetSDMeasurements, GetVaccineTableForChild, MidwifeLogin, MidwifeLogout, UpdateChild, UpdateParent, VaccineGetByChild, getAllParents } from '../methods/MidwifeMethod.js';
 
 
 
@@ -36,15 +37,35 @@ const checkAuth = (req, res, next) => {
     }
 }
 
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/")
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname)
+  },
+})
+
+const uploadStorage = multer({ storage: storage })
+router.options('*', (req, res) => res.sendStatus(200));
+
 
 router.options('*', (req, res) => res.sendStatus(200));
 router.post('/login', MidwifeLogin);
 router.post('/logout', MidwifeLogout);
+router.get('/check-auth', CheckMidwifeAuth);
 
 router.use(checkAuth);
 
+router.get('/area', (req, res) => {
+  res.json({
+    area : req.session.midwife.midwife_id.area_id
+  })
+});
+
 router.post('/parent', CreateParent);
 router.get('/parents', getAllParents);
+router.put('/parent/:guardian_nic', UpdateParent);
 router.get('/parent/:guardian_nic', GetParentByID);
 
 
@@ -55,6 +76,7 @@ router.get('/child/last-growth_detail/:child_id', GetLastChildGrowthDetail);
 // FOR TABLE
 router.get('/child/sd_measurements', GetSDMeasurements);
 
+router.get('/child/vaccine', GetAllVaccine);
 router.get('/child/vaccine/:child_id', GetVaccineTableForChild);
 router.post('/child/vaccine/:child_id/:vaccine_id', VaccineGetByChild);
 
@@ -64,5 +86,11 @@ router.get('/child/growth-detail-chart/:child_id', GetGrowthDetailsChart);
 router.get('/child', GetAllChild);
 router.get('/child/:id', GetChildByID);
 router.put('/child/:child_id', UpdateChild);
+
+router.post('/add-news', uploadStorage.single('file'), AddNews);
+router.get('/news', GetNews);
+router.get('/news/:id', GetNewsByID);
+router.delete('/news/:id', DeleteNews);
+
 
 export default router;
