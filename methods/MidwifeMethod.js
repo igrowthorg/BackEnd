@@ -92,7 +92,7 @@ export const CreateParent = async(req, res, next) => {
             // send email
             try{
                 await transporter.sendMail({
-                    from: "I-GROWTH <uc.chamod.public@gmail.com>",
+                    from: "I-GROWTH <kalanisathya12@gmail.com>",
                     to: `${email}`,
                     subject: "Your account have been created",
                     html: `
