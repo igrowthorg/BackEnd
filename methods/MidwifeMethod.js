@@ -54,6 +54,19 @@ export const MidwifeLogout = async(req, res, next) => {
     }
 }
 
+export const CheckMidwifeAuth = async(req, res, next) => {
+    if(req.session.midwife) {
+        return res.status(200).json({
+            message: 'Authorized'
+        })
+    }
+    else {
+        return res.status(401).json({
+            message: 'Unauthorized'
+        })
+    }
+}
+
 export const CreateParent = async(req, res, next) => {
     const { guardian_nic, mother_name, father_name, phone, email, address, area_id, guardian_name } = req.body;
 
@@ -79,7 +92,7 @@ export const CreateParent = async(req, res, next) => {
             // send email
             try{
                 await transporter.sendMail({
-                    from: "I-GROWTH <uc.chamod.public@gmail.com>",
+                    from: "I-GROWTH <kalanisathya12@gmail.com>",
                     to: `${email}`,
                     subject: "Your account have been created",
                     html: `
@@ -114,12 +127,64 @@ export const CreateParent = async(req, res, next) => {
 
 export const getAllParents = async(req, res, next) => {
     try{
-        const [rows] = await pool.query('SELECT * FROM parent');
+        const [rows] = await pool.query('SELECT parent.*, area.area_name FROM parent inner join area on parent.area_id = area.area_id where parent.area_id = ?', [req.session.midwife.midwife_id.area_id]);
         const parents = rows.map((row) => {
             const { password, ...parent } = row;
             return parent;
         })
         return res.status(200).json(parents)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const UpdateParent = async(req, res, next) => {
+    const { guardian_nic } = req.params;
+    const { mother_name, father_name, phone, address, guardian_name } = req.body;
+
+    if(!guardian_nic || !mother_name || !father_name || !phone || !address || !guardian_name) {
+        return res.status(400).json({
+            message: 'Please fill all fields',
+            fields: ['guardian_nic', 'mother_name', 'father_name', 'phone', 'address', 'guardian_name']
+        })
+    }
+
+    // get parent by gardian_nic
+    try{
+        const [rows] = await pool.query('SELECT * FROM parent WHERE guardian_nic = ?', [guardian_nic.toLowerCase()]);
+
+        if(rows.length < 1) return res.status(404).json({message: 'Parent not found'})
+
+        if(rows[0].area_id != req.session.midwife.midwife_id.area_id){
+            return res.status(401).json({
+                message: 'Not privileges'
+            })
+        }
+    
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+
+    
+    try{
+        const [row] = await pool.query('UPDATE parent SET mother_name = ?, father_name = ?, phone = ?, address = ?, guardian_name = ? WHERE guardian_nic = ?', [mother_name, father_name, phone, address, guardian_name, guardian_nic.toLowerCase()]);
+
+        if(row.affectedRows > 0) {
+            return res.status(200).json({
+                message: 'Parent updated'
+            })
+        }
+        else {
+            return res.status(500).json({
+                message: 'Parent updating failed'
+            })
+        }
     }
     catch(err) {
         return res.status(500).json({
@@ -200,7 +265,7 @@ export const GetChildByID = async(req, res, next) => {
 export const GetAllChild = async(req, res, next) => {
     
     try{
-        const [rows] = await pool.query('SELECT child.*, parent.guardian_nic, parent.mother_name, parent.father_name, parent.phone, parent.email, parent.address, parent.area_id, area.area_name, parent.guardian_name, parent.created_midwife FROM child join parent on child.gardian_nic = parent.guardian_nic join area on child.area_id = area.area_id inner join midwife on midwife.area_id = child.area_id where child.area_id = 7;', [req.session.midwife.midwife_id.area_id]);
+        const [rows] = await pool.query('SELECT child.*, parent.guardian_nic, parent.mother_name, parent.father_name, parent.phone, parent.email, parent.address, parent.area_id, area.area_name, parent.guardian_name, parent.created_midwife FROM child inner join parent on child.gardian_nic = parent.guardian_nic inner join area on child.area_id = area.area_id where child.area_id = ?', [req.session.midwife.midwife_id.area_id]);
 
         if(rows.length < 1) return res.status(404).json({message: 'Child not found'})
 
@@ -326,9 +391,31 @@ export const GetLastChildGrowthDetail = async(req, res, next) => {
     }
 
     try{
-        const [rows] = await pool.query('SELECT * FROM growth_detail WHERE child_id = ? ORDER BY month DESC LIMIT 1', [child_id]);
+        const [rows] = await pool.query('SELECT growth_detail.*, child.child_name, child.area_id FROM growth_detail join child on child.child_id = growth_detail.child_id WHERE growth_detail.child_id = ? ORDER BY month DESC LIMIT 1', [child_id]);
 
-        if(rows.length < 1) return res.status(404).json({message: 'Child growth detail not found'})
+        if(rows.length < 1) {
+
+            try{
+                const [child] = await pool.query('SELECT * FROM child WHERE child_id = ?', [child_id]);
+                if(child.length < 1) return res.status(404).json({message: 'Child not found'})
+                return res.status(200).json({
+                    message: 'Child growth detail not found',
+                    child: child[0]
+                })
+            }
+            catch(err) {
+                return res.status(500).json({
+                    message: err.message
+                })
+            }
+            // return res.status(404).json({message: 'Child growth detail not found'})
+        }
+
+        if(req.session.midwife.midwife_id.area_id != rows[0].area_id){
+            return res.status(200).json({
+                message: 'Not privileges'
+            })
+        }
 
         return res.status(200).json(rows[0])
     }
@@ -355,102 +442,135 @@ export const GetSDMeasurements = async(req, res, next) => {
 
     const {area_id} = req.session.midwife.midwife_id;
     
-    const [rows] = await pool.query('SELECT child.*, TIMESTAMPDIFF(MONTH, child.child_birthday, CURDATE()) AS months_difference, growth_detail.weight FROM child LEFT JOIN growth_detail ON child.child_id = growth_detail.child_id AND growth_detail.month = ( SELECT MAX(month) FROM growth_detail WHERE child_id = child.child_id ) WHERE child.child_birthday >= DATE_SUB(CURDATE(), INTERVAL 60 MONTH) AND child.area_id = ?', [area_id]);
+    try{
+        const [rows] = await pool.query('SELECT child.*, TIMESTAMPDIFF(MONTH, child.child_birthday, CURDATE()) AS months_difference, growth_detail.weight FROM child LEFT JOIN growth_detail ON child.child_id = growth_detail.child_id AND growth_detail.month = ( SELECT MAX(month) FROM growth_detail WHERE child_id = child.child_id ) WHERE child.child_birthday >= DATE_SUB(CURDATE(), INTERVAL 60 MONTH) AND child.area_id = ?', [area_id]);
     
-    // Create object for save 60 arrays
-    var sixtyMonths = {};
-    var sixtyMonths_copy = {};
+        // Create object for save 60 arrays
+        var sixtyMonths = {};
+        var sixtyMonths_copy = {};
 
-    // Create 60 arrays
-    for(var i = 2; i <= 60; i++){
-        sixtyMonths[i] = [];
-        sixtyMonths_copy[i] = [];
-    }
-
-    // Add data to arrays
-    rows.forEach(row => {
-        sixtyMonths[row.months_difference].push(row);
-    })
-
-    // Calculate SD
-    Object.keys(sixtyMonths).map((key) => {
-
-        if(sixtyMonths[key].length > 0){
-
-            sixtyMonths[key].forEach((row) => {
-
-                let caled_sd = cal_sd(row.months_difference);
-                
-                if(row.weight > caled_sd.plus_2SD){
-                    sixtyMonths_copy[key].push({
-                        // ...row,
-                        sd: 'over_weight'
-                    })
-                }
-                else if(row.weight > caled_sd.minus_1SD){
-                    sixtyMonths_copy[key].push({
-                        // ...row,
-                        sd: 'proper_weight'
-                    })
-                }
-                else if(row.weight > caled_sd.minus_2SD){
-                    sixtyMonths_copy[key].push({
-                        // ...row,
-                        sd: 'risk_of_under_weight'
-                    })
-                }
-                else if(row.weight > caled_sd.minus_3SD){
-                    sixtyMonths_copy[key].push({
-                        // ...row,
-                        sd: 'minimum_under_weight'
-                    })
-                }
-                else{
-                    sixtyMonths_copy[key].push({
-                        // ...row,
-                        sd: 'severe_under_weight'
-                    })
-                }
-            })
+        // Create 60 arrays
+        for(var i = 2; i <= 60; i++){
+            sixtyMonths[i] = [];
+            sixtyMonths_copy[i] = [];
         }
-    })
 
-    
+        console.log(rows);
+        // Add data to arrays
+        rows.forEach(row => {
+            if(row.months_difference >= 2 && row.months_difference <= 60) sixtyMonths[row.months_difference].push(row);
+            // console.log(row.months_difference);
+        })
 
-    Object.keys(sixtyMonths_copy).map((key) => {
+        // Calculate SD
+        Object.keys(sixtyMonths).map((key) => {
+
+            if(sixtyMonths[key].length > 0){
+
+                sixtyMonths[key].forEach((row) => {
+
+                    let caled_sd = cal_sd(row.months_difference);
+                    
+                    if(row.weight > caled_sd.plus_2SD){
+                        sixtyMonths_copy[key].push({
+                            // ...row,
+                            sd: 'over_weight'
+                        })
+                    }
+                    else if(row.weight > caled_sd.minus_1SD){
+                        sixtyMonths_copy[key].push({
+                            // ...row,
+                            sd: 'proper_weight'
+                        })
+                    }
+                    else if(row.weight > caled_sd.minus_2SD){
+                        sixtyMonths_copy[key].push({
+                            // ...row,
+                            sd: 'risk_of_under_weight'
+                        })
+                    }
+                    else if(row.weight > caled_sd.minus_3SD){
+                        sixtyMonths_copy[key].push({
+                            // ...row,
+                            sd: 'minimum_under_weight'
+                        })
+                    }
+                    else{
+                        sixtyMonths_copy[key].push({
+                            // ...row,
+                            sd: 'severe_under_weight'
+                        })
+                    }
+                })
+            }
+        })
+
         
-        if(sixtyMonths_copy[key].length > 0){
-            sixtyMonths_copy[key].forEach((row) => {
-                let sd_count = {
+
+        Object.keys(sixtyMonths_copy).map((key) => {
+            
+            if(sixtyMonths_copy[key].length > 0){
+                sixtyMonths_copy[key].forEach((row) => {
+                    let sd_count = {
+                        over_weight: 0,
+                        proper_weight: 0,
+                        risk_of_under_weight: 0,
+                        minimum_under_weight: 0,
+                        severe_under_weight: 0,
+                    }        
+
+                    if(row.sd == 'over_weight') sd_count.over_weight++;
+                    else if(row.sd == 'proper_weight') sd_count.proper_weight++;
+                    else if(row.sd == 'risk_of_under_weight') sd_count.risk_of_under_weight++;
+                    else if(row.sd == 'minimum_under_weight') sd_count.minimum_under_weight++;
+                    else if(row.sd == 'severe_under_weight') sd_count.severe_under_weight++;
+
+                    sixtyMonths_copy[key] = sd_count
+                });
+
+            }
+            else{
+                sixtyMonths_copy[key] = {
                     over_weight: 0,
                     proper_weight: 0,
                     risk_of_under_weight: 0,
                     minimum_under_weight: 0,
                     severe_under_weight: 0,
-                }        
-
-                if(row.sd == 'over_weight') sd_count.over_weight++;
-                else if(row.sd == 'proper_weight') sd_count.proper_weight++;
-                else if(row.sd == 'risk_of_under_weight') sd_count.risk_of_under_weight++;
-                else if(row.sd == 'minimum_under_weight') sd_count.minimum_under_weight++;
-                else if(row.sd == 'severe_under_weight') sd_count.severe_under_weight++;
-
-                sixtyMonths_copy[key] = sd_count
-            });
-
-        }
-        else{
-            sixtyMonths_copy[key] = {
-                over_weight: 0,
-                proper_weight: 0,
-                risk_of_under_weight: 0,
-                minimum_under_weight: 0,
-                severe_under_weight: 0,
+                }
             }
-        }
-    })
+        })
 
-    res.send(sixtyMonths_copy)
+        res.send(sixtyMonths_copy)
+    }
+    catch(err) {
+        console.log(err);
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetAllVaccine = async(req, res, next) => {
+    const midwife_area_id = req.session.midwife.midwife_id.area_id;
+
+    try{
+        const [rows] = await pool.query('SELECT vaccine_timetable.vaccine_timetable_id as id, vaccine_timetable.vaccine_month, vaccine_timetable.note, vaccine.vaccine_name FROM vaccine_timetable inner join vaccine on vaccine_timetable.vaccine_id = vaccine.vaccine_id');
+
+        // const vaccines_populate_with_more_data = rows.map( async(row) => {
+        //     const {vaccine_id, vaccine_name, note} = row;
+
+        //     // Get how many children are eligible for this vaccine
+        //     const [children] = await pool.query(`select COUNT(child_id), TIMESTAMPDIFF(MONTH, child_birthday, CURDATE()) AS months_difference from child where area_id = ?`, [midwife_area_id]);
+        //     console.log(children);
+        // })
+
+        return res.status(200).json(rows)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
 }
 
 export const GetVaccineTableForChild = async(req, res, next) => {
@@ -574,6 +694,86 @@ export const GetGrowthDetailsChart = async(req, res, next) => {
         })
 
         return res.status(200).json(table_data)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const AddNews = async(req, res, next) => {
+    const { title, summary, description } = req.body;
+
+    const author = `{"id":${req.session.midwife.midwife_id.midwife_id},"role":"midwife"}`
+    
+    const image = req.file.filename;
+
+    if(!title || !summary || !description || !image || !author) {
+        return res.status(400).json({
+            message: 'All fields are required'
+        })
+    }
+    
+    try{
+        const [rows] = await pool.query('INSERT INTO news_feed (title, summary, description, image, author) VALUES (?, ?, ?, ?, ?)', [title, summary, description, image, author]);
+        if(rows.affectedRows > 0) {
+            return res.status(200).json({
+                message: 'News added'
+            })
+        }
+        else {
+            return res.status(500).json({
+                message: 'News adding failed'
+            })
+        }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetNews = async(req, res, next) => {
+    try{
+        const [rows] = await pool.query('SELECT * FROM news_feed');
+        return res.status(200).json(rows)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetNewsByID = async(req, res, next) => {
+    const { id } = req.params;
+    try{
+        const [rows] = await pool.query('SELECT * FROM news_feed WHERE news_id = ? LIMIT 1', [id]);
+        return res.status(200).json(rows[0])
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const DeleteNews = async(req, res, next) => {
+    const { id } = req.params;
+    try{
+        const [rows] = await pool.query('DELETE FROM news_feed WHERE news_id = ?', [id]);
+        if(rows.affectedRows > 0) {
+            return res.status(200).json({
+                message: 'News deleted'
+            })
+        }
+        else {
+            return res.status(500).json({
+                message: 'News deleting failed'
+            })
+        }
     }
     catch(err) {
         return res.status(500).json({

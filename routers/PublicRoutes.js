@@ -1,5 +1,5 @@
 import express from 'express';
-import { GetAllAreas, GetAreaByID } from '../methods/PublicMethod.js';
+import { GetAllAreas, GetAreaByID, GetImageByID, GetNews, GetNewsByID, GetSession } from '../methods/PublicMethod.js';
 const router = express.Router();
 
 
@@ -16,5 +16,10 @@ router.options('*', (req, res) => {
 });
 router.get('/areas', GetAllAreas);
 router.get('/area/:id', GetAreaByID);
+router.get('/session', GetSession);
+router.get('/image/:id', GetImageByID);
+
+router.get('/news', GetNews);
+router.get('/news/:id', GetNewsByID);
 
 export default router;
