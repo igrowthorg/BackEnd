@@ -12,7 +12,7 @@ export const AdminLogin = async(req, res, next) => {
     }
 
     try{
-        const [rows] = await pool.query('SELECT id, Username FROM admin WHERE Username = ? AND password = ? LIMIT 1', [username, password]);
+        const [rows] = await pool.query('SELECT id, Username, super, area_id FROM admin WHERE Username = ? AND password = ? LIMIT 1', [username, password]);
         
         try{
             if(rows.length > 0) {
@@ -20,7 +20,7 @@ export const AdminLogin = async(req, res, next) => {
                 req.session.save();
                 return res.status(200).json({
                     message: 'Login success',
-                    data: req.session.admin.admin_id
+                    data: req.session.admin.admin_id,
                 })
             }
             else {
@@ -34,6 +34,68 @@ export const AdminLogin = async(req, res, next) => {
                 message: err.message
             })
         }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const CrateAdmin = async(req, res, next) => {
+    const {username, area_id, email} = req.body;
+
+    const password = GeneratePassword;
+
+    if(!username || !area_id || !email) {
+        return res.status(400).json({
+            message: 'All fields are required',
+            require: 'username, area_id, email'
+        })
+    }
+
+    const digitOne = Math.floor(Math.random() * 9) + 1;
+    const digitTwo = Math.floor(Math.random() * 9) + 1;
+    const digitThree = Math.floor(Math.random() * 9) + 1;
+
+    const generated_username = username + digitOne + digitTwo + digitThree;
+
+    try{
+        const [rows] = await pool.query('INSERT INTO admin (Username, password, area_id, email) VALUES (?, ?, ?, ?)', [generated_username, password, area_id, email]);
+        if(rows.affectedRows > 0) {
+            try{
+                await transporter.sendMail({
+                    from: "I-GROWTH <uc.chamod.public@gmail.com>",
+                    to: `${email}`,
+                    subject: "Your Admin Account Has Been Created",
+                    html: `<div style="width: 100%; height: auto; box-sizing: border-box;"><div style="max-width: 500px; width: 100%; background-color: rgb(231, 231, 231); margin: 0 auto; padding: 20px 10px; box-sizing: border-box;"><h1 style="margin: 0; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 22px; color: rgb(61, 89, 243); ">I-GROWTH</h1><div><p style="font-family: Arial, Helvetica, sans-serif; font-size: 15px;">Your admin account has been created. You can access your account using this link <a href="http://localhost:3000/auth">http://localhost:3000/auth</a></p><div style="width: fit-content; background-color: rgb(63, 63, 63); color: #ffffff; padding: 10px;"><code>USERNAME : ${generated_username}</code><br><code>PASSWORD : ${password}</code></div></div></div></div>`
+                });
+
+                res.status(200).json({message: 'Admin created'})  
+            }
+            catch(err){
+                return res.status(500).json({
+                    message: "Can't send username and password to admin"
+                })
+            }
+        }
+        else {
+            return res.status(500).json({
+                message: 'Admin creation failed'
+            })
+        }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetAllAdmin = async(req, res, next) => {
+    try{
+        const [rows] = await pool.query('SELECT admin.*, area.area_id, area_name FROM admin inner join area on admin.area_id = area.area_id where super = 0');
+        return res.status(200).json(rows)
     }
     catch(err) {
         return res.status(500).json({
@@ -78,6 +140,12 @@ export const CreateMidwife = async(req, res, next) => {
         })
     }
 
+    if(req.session.admin.admin_id.area_id != area_id){
+        return res.status(401).json({
+            message: 'Not permission'
+        })
+    }
+
     // generate password
     const password = GeneratePassword;
 
@@ -88,15 +156,10 @@ export const CreateMidwife = async(req, res, next) => {
             // send email
             try{
                 await transporter.sendMail({
-                    from: "I-GROWTH <kalanisathya12@gmail.com>",
+                    from: "I-GROWTH <uc.chamod.public@gmail.com>",
                     to: `${email}`,
-                    subject: "Your account have been created",
-                    html: `
-                        <h1>Your account have been created</h1>
-                        <p>Username: ${nic}</p>
-                        <p>Password: ${password}</p>
-                        <p>Click <a href="http://localhost:3000/midwife/login">here</a> to login</p>
-                    `
+                    subject: "Your Account Has Been Created",
+                    html: `<div style="width: 100%; height: auto; box-sizing: border-box;"><div style="max-width: 500px; width: 100%; background-color: rgb(231, 231, 231); margin: 0 auto; padding: 20px 10px; box-sizing: border-box;"><h1 style="margin: 0; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 22px; color: rgb(61, 89, 243); ">I-GROWTH</h1><div><p style="font-family: Arial, Helvetica, sans-serif; font-size: 15px;">Your account has been created. You can access your account using this link <a href="http://localhost:3000/auth">http://localhost:3000/auth</a></p><div style="width: fit-content; background-color: rgb(63, 63, 63); color: #ffffff; padding: 10px;"><code>USERNAME : ${nic}</code><br><code>PASSWORD : ${password}</code></div></div></div></div>`
                 });
 
                 res.status(200).json({message: 'Midwife created'})  
@@ -120,9 +183,50 @@ export const CreateMidwife = async(req, res, next) => {
     }
 }
 
+export const DeleteMidwife = async(req, res, next) => {
+    const { id } = req.params;
+
+    // get midwife area id
+    try{
+        const [rows] = await pool.query('SELECT area_id FROM midwife WHERE midwife_id = ? LIMIT 1', [id]);
+        var area_id = rows[0].area_id;
+
+        if(req.session.admin.admin_id.area_id != area_id){
+            return res.status(401).json({
+                message: 'Not permission'
+            })
+        }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+
+    try{
+        const [rows] = await pool.query('DELETE FROM midwife WHERE midwife_id = ?', [id]);
+        if(rows.affectedRows > 0) {
+            return res.status(200).json({
+                message: 'Midwife deleted'
+            })
+        }
+        else {
+            return res.status(500).json({
+                message: 'Midwife deleting failed'
+            })
+        }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+
+}
+
 export const GetAllMidwifes = async(req, res, next) => {
     try{
-        const [rows] = await pool.query('SELECT midwife.*, area.area_name FROM midwife inner join area on midwife.area_id = area.area_id');
+        const [rows] = await pool.query('SELECT midwife.*, area.area_name FROM midwife inner join area on midwife.area_id = area.area_id where midwife.area_id = ?', [req.session.admin.admin_id.area_id]);
         const rests = rows.map((row) => {
             const { password, ...rest } = row;
             return rest;
@@ -171,6 +275,24 @@ export const UpdateMidwife = async(req, res, next) => {
         })
     }
 
+    // get midwife area id
+    try{
+        const [rows] = await pool.query('SELECT area_id FROM midwife WHERE midwife_id = ? LIMIT 1', [id]);
+        var area_id = rows[0].area_id;
+
+        if(req.session.admin.admin_id.area_id != area_id){
+            return res.status(401).json({
+                message: 'Not permission'
+            })
+        }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+
+
     try{
         const [rows] = await pool.query('UPDATE midwife SET name = ?, phone = ?, service_id = ? WHERE midwife_id = ?', [name, phone, service_id, id]);
         
@@ -202,6 +324,12 @@ export const CreateOfficer = async(req, res, next) => {
         })
     }
 
+    if(req.session.admin.admin_id.area_id != area_id){
+        return res.status(401).json({
+            message: 'Not permission'
+        })
+    }
+
     const password = GeneratePassword;
 
     try{
@@ -211,22 +339,17 @@ export const CreateOfficer = async(req, res, next) => {
             // send email
             try{
                 await transporter.sendMail({
-                    from: "I-GROWTH <kalanisathya12@gmail.com>",
+                    from: "I-GROWTH <uc.chamod.public@gmail.com>",
                     to: `${email}`,
-                    subject: "Your account have been created",
-                    html: `
-                        <h1>Your account have been created</h1>
-                        <p>Username: ${nic}</p>
-                        <p>Password: ${password}</p>
-                        <p>Click <a href="http://localhost:3000/officer/login">here</a> to login</p>
-                    `
+                    subject: "Your Account Has Been Created",
+                    html: `<div style="width: 100%; height: auto; box-sizing: border-box;"><div style="max-width: 500px; width: 100%; background-color: rgb(231, 231, 231); margin: 0 auto; padding: 20px 10px; box-sizing: border-box;"><h1 style="margin: 0; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 22px; color: rgb(61, 89, 243); ">I-GROWTH</h1><div><p style="font-family: Arial, Helvetica, sans-serif; font-size: 15px;">Your account has been created. You can access your account using this link <a href="http://localhost:3000/auth">http://localhost:3000/auth</a></p><div style="width: fit-content; background-color: rgb(63, 63, 63); color: #ffffff; padding: 10px;"><code>USERNAME : ${nic}</code><br><code>PASSWORD : ${password}</code></div></div></div></div>`
                 }); 
                 
                 res.status(200).json({message: 'Officer created'})
             }
             catch(err){
                 return res.status(500).json({
-                    message: "Can't send username and password to midwife"
+                    message: "Can't send username and password to officer"
                 })
             }
         }
@@ -244,9 +367,33 @@ export const CreateOfficer = async(req, res, next) => {
     
 }
 
+export const DeleteOfficer = async(req, res, next) => {
+    const { id } = req.params;
+
+
+    try{
+        const [rows] = await pool.query('DELETE FROM medical_officer WHERE officer_id = ?', [id]);
+        if(rows.affectedRows > 0) {
+            return res.status(200).json({
+                message: 'Officer deleted'
+            })
+        }
+        else {
+            return res.status(500).json({
+                message: 'Officer deleting failed'
+            })
+        }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
 export const UpdateOfficer = async(req, res, next) => {
     const { id } = req.params;
-    const { officer_name, phone, service_id, area_id } = req.body;
+    const { officer_name, phone, service_id } = req.body;
 
     if(!id){
         return res.status(400).json({
@@ -254,14 +401,31 @@ export const UpdateOfficer = async(req, res, next) => {
         })
     }
 
-    if(!officer_name || !phone || !service_id || !area_id) {
+    if(!officer_name || !phone || !service_id) {
         return res.status(400).json({
             message: 'All fields are required'
         })
     }
 
+    // Get officer area_id
     try{
-        const [rows] = await pool.query('UPDATE medical_officer SET officer_name = ?, phone = ?, service_id = ?, area_id = ? WHERE officer_id = ?', [officer_name, phone, service_id, area_id, id]);
+        const [rows] = await pool.query('SELECT area_id FROM medical_officer WHERE officer_id = ? LIMIT 1', [id]);
+        var area_id = rows[0].area_id;
+
+        if(req.session.admin.admin_id.area_id != area_id){
+            return res.status(401).json({
+                message: 'Not permission'
+            })
+        }
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+
+    try{
+        const [rows] = await pool.query('UPDATE medical_officer SET officer_name = ?, phone = ?, service_id = ? WHERE officer_id = ?', [officer_name, phone, service_id, id]);
         
         if(rows.affectedRows > 0) {
             return res.status(200).json({
@@ -284,7 +448,7 @@ export const UpdateOfficer = async(req, res, next) => {
 
 export const getAllOfficers = async(req, res, next) => {
     try{
-        const [rows] = await pool.query('SELECT * FROM medical_officer');
+        const [rows] = await pool.query('SELECT *, area.area_name FROM medical_officer inner join area on medical_officer.area_id = area.area_id where medical_officer.area_id = ?', [req.session.admin.admin_id.area_id] );
         const rests = rows.map((row) => {
             const { password, ...rest } = row;
             return rest;
@@ -335,8 +499,16 @@ export const GetOfficerByAreaID = async(req, res, next) => {
 
 // not sure
 export const AddNews = async(req, res, next) => {
-    const { title, summary, description, author } = req.body;
-    
+    const { title, summary, description } = req.body;
+
+    const author = `{"id":${req.session.admin.admin_id.id},"role":"admin"}`
+
+    if(req.file == undefined) {
+        return res.status(400).json({
+            message: 'Image is required'
+        })
+    }
+
     const image = req.file.filename;
 
     if(!title || !summary || !description || !image || !author) {
@@ -346,7 +518,7 @@ export const AddNews = async(req, res, next) => {
     }
     
     try{
-        const [rows] = await pool.query('INSERT INTO news_feed (title, summary, description, image, author) VALUES (?, ?, ?, ?, ?)', [title, summary, description, image, `{"id":${req.session.admin.admin_id.id},"role":"admin"}`]);
+        const [rows] = await pool.query('INSERT INTO news_feed (title, summary, description, image, author) VALUES (?, ?, ?, ?, ?)', [title, summary, description, image, author]);
         if(rows.affectedRows > 0) {
             return res.status(200).json({
                 message: 'News added'
@@ -369,6 +541,41 @@ export const GetNews = async(req, res, next) => {
     try{
         const [rows] = await pool.query('SELECT * FROM news_feed');
         return res.status(200).json(rows)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetNewsByID = async(req, res, next) => {
+    const { id } = req.params;
+    try{
+        const [rows] = await pool.query('SELECT * FROM news_feed WHERE news_id = ? LIMIT 1', [id]);
+        return res.status(200).json(rows[0])
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const DeleteNews = async(req, res, next) => {
+    const { id } = req.params;
+    try{
+        const [rows] = await pool.query('DELETE FROM news_feed WHERE news_id = ?', [id]);
+        if(rows.affectedRows > 0) {
+            return res.status(200).json({
+                message: 'News deleted'
+            })
+        }
+        else {
+            return res.status(500).json({
+                message: 'News deleting failed'
+            })
+        }
     }
     catch(err) {
         return res.status(500).json({
