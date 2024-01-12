@@ -12,11 +12,11 @@ export const ParentLogin = async(req, res, next) => {
         
         try{
             if(rows.length > 0) {
-                req.session.midwife = {midwife_id: rows[0], area_id: rows[0].area_id };
+                req.session.parent = {parent_id: rows[0], area_id: rows[0].area_id };
                 req.session.save();
                 return res.status(200).json({
                     message: 'Login success',
-                    data: req.session.midwife.midwife_id
+                    data: req.session.parent.parent_id
                 })
             }
             else {
@@ -38,7 +38,7 @@ export const ParentLogin = async(req, res, next) => {
     }
 }
 
-export const MidwifeLogout = async(req, res, next) => {
+export const ParentLogout = async(req, res, next) => {
     try{
         req.session.destroy();
         return res.status(200).json({
@@ -52,8 +52,8 @@ export const MidwifeLogout = async(req, res, next) => {
     }
 }
 
-export const CheckMidwifeAuth = async(req, res, next) => {
-    if(req.session.midwife) {
+export const CheckParentAuth = async(req, res, next) => {
+    if(req.session.parent) {
         return res.status(200).json({
             message: 'Authorized'
         })
@@ -63,4 +63,22 @@ export const CheckMidwifeAuth = async(req, res, next) => {
             message: 'Unauthorized'
         })
     }
+}
+
+
+export const GetAllChilds = async(req, res, next) => {
+    try{
+        const [rows] = await pool.query('SELECT parent.*, parent.parent_id FROM parent inner join child on parent.parent_id = child.parent_id where parent.parent_id = ?', [req.session.parent.parent_id]);
+        const rests = rows.map((row) => {
+            const { password, ...rest } = row;
+            return rest;
+        })
+        return res.status(200).json(rests)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+
 }
