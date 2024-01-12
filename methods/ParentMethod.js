@@ -82,3 +82,18 @@ export const GetAllChilds = async(req, res, next) => {
     }
 
 }
+
+export const GetChildByID = async(req, res, next) => {
+    const {child_id} = req.params;
+    try{
+        const [rows] = await pool.query('SELECT * FROM child WHERE child_id = ?', [child_id]);
+        if(rows.length < 1) return res.status(404).json({message: 'Child not found'})
+        const {password, ...rest} = rows[0];
+        return res.status(200).json(rest)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
