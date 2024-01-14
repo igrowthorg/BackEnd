@@ -176,7 +176,7 @@ export const UpdateParentProfile = async (req, res, next) => {
     else {
         // not update password
         try {
-            const [rows] = await pool.query('UPDATE parent SET mother_name = ?, father_name = ?, guardian_name = ?, phone = ?, address = ? WHERE guardian_nic = ?', [motherName, fatherName, guardian_name, phone, address, password, guardian_nic]);
+            const [rows] = await pool.query('UPDATE parent SET mother_name = ?, father_name = ?, guardian_name = ?, phone = ?, address = ?, password = ? WHERE guardian_nic = ?', [motherName, fatherName, guardianName, phone, address, old_password, guardian_nic]);
             if (rows.affectedRows > 0) {
                 return res.status(200).json({
                     message: 'Profile updated'
