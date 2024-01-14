@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import session from 'express-session';
-import { ParentLogin, ParentLogout, CheckParentAuth } from '../methods/ParentMethod.js';
+import { ParentLogin, ParentLogout, CheckParentAuth, UpdateParentProfile, GetParentProfile } from '../methods/ParentMethod.js';
 
 router.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
@@ -37,6 +37,8 @@ router.options('*', (req, res) => res.sendStatus(200));
 router.post('/login', ParentLogin);
 router.post('/logout', ParentLogout);
 router.get('/check-auth', CheckParentAuth);
+router.get('/profile', GetParentProfile);
+router.put('/profile', UpdateParentProfile);
 
 router.use(checkAuth);
 
