@@ -194,8 +194,6 @@ export const UpdateParentProfile = async (req, res, next) => {
             })
         }
     }
-
-
 }
 
 export const VaccineGetByChild = async(req, res, next) => {
