@@ -782,56 +782,54 @@ export const DeleteNews = async(req, res, next) => {
 }
 
 
-// export const GetChildTableForVaccine = async(req, res, next) => {
-//     const { vaccine_id } = req.params;
+export const GetChildTableForVaccine = async(req, res, next) => {
+    const { vaccine_id } = req.params;
 
-//     var CHILD_MAP =[]
+         var CHILD_MAP =[]
     
-//     if(!vaccine_id){
-//         return res.status(400).json({
-//             message: 'Please add params child_id',
-//         })
-//     }
+    if(!vaccine_id){
+        return res.status(400).json({
+            message: 'Please add params vaccine_id',
+        })
+    }
 
-//     try{
-//         const [children] = await pool.query('select *, TIMESTAMPDIFF(MONTH, child_birthday, CURDATE()) AS months_difference from child');
+    try{
+        const [children] = await pool.query('select *, TIMESTAMPDIFF(MONTH, child_birthday, CURDATE()) AS months_difference from child');
         
-//         if(children.length < 1) return res.status(404).json({message: 'Child not found'})
+        if(children.length < 1) return res.status(404).json({message: 'Child not found'})
 
-//         const [all_vaccine] = await pool.query('select * from vaccine where vaccine_id = ?', [vaccine_id]);
+        const [all_vaccine] = await pool.query('select vaccine_timetable.vaccine_month AS vaccine_month from vaccine join vaccine_timetable on vaccine.vaccine_id = vaccine_timetable.vaccine_id where vaccine_id = 1');
 
-//         if(all_vaccine.length < 1) return res.status(404).json({message: 'Vaccine not found'})
+        if(all_vaccine.length < 1) return res.status(404).json({message: 'Vaccine not found'})
 
-//         const vaccine = all_vaccine[0]
+        const vaccine = all_vaccine[0]
 
-//         children.forEach(children => {
+        children.forEach(children => {
 
-//             let return_data = {
-//                 child_id: children.child_id,
-//                 child_name: children.child_name,
-//                 child_gender: children.child_gender,
-//                 months_difference: children.months_difference
-//             }
+            let return_data = {
+                child_id: children.child_id,
+                child_name: children.child_name,
+                child_gender: children.child_gender,
+                months_difference: children.months_difference
+            }
 
-//             // Check the eligibility of child
-//             const eligible = vaccine.vaccine_month <= children.months_difference;
+            // Check the eligibility of child
+            const eligible = vaccine.vaccine_month <= children.months_difference;
             
-//             if(eligible) {
-//                 return_data = {...return_data, status: "eligible"}
-//             }
-//             else {
-//                 return_data = {...return_data, status: "not_eligible"}
-//             }
+            if(eligible) {
+                return_data = {...return_data, status: "eligible"}
+            }
+            else {
+                return_data = {...return_data, status: "not_eligible"}
+            }
 
-//             CHILD_MAP.push(return_data);
-            
-//         })
-
-//         return res.status(200).json(CHILD_MAP)
-//     }
-//     catch(err) {
-//         return res.status(500).json({
-//             message: err.message
-//         })
-//     }
-// }
+            CHILD_MAP.push(return_data);
+        })
+        return res.status(200).json(CHILD_MAP)
+    }
+    catch(err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
