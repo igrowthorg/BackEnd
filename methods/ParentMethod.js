@@ -116,7 +116,7 @@ export const GetParentProfile = async (req, res, next) => {
 
 export const UpdateParentProfile = async (req, res, next) => {
     const guardian_nic = req.session.parent.guardian_nic.guardian_nic;
-    const { motherName,fatherName,guardian_name, phone, address,old_password, new_password } = req.body;
+    const { motherName,fatherName,guardianName, phone, address,old_password, new_password } = req.body;
 
     if (new_password.length > 0 || old_password.length > 0) {
         if (!new_password || !old_password) {
@@ -155,7 +155,7 @@ export const UpdateParentProfile = async (req, res, next) => {
 
         //  update data
         try {
-            const [rows] = await pool.query('UPDATE parent SET mother_name = ?, father_name = ?, guardian_name = ?, phone = ?, address = ?, password = ? WHERE guardian_nic = ?', [motherName, fatherName, guardianName, phone, address, password, guardian_nic]);
+            const [rows] = await pool.query('UPDATE parent SET mother_name = ?, father_name = ?, guardian_name = ?, phone = ?, address = ?, password = ? WHERE guardian_nic = ?', [motherName, fatherName, guardianName, phone, address, new_password, guardian_nic]);
             if (rows.affectedRows > 0) {
                 return res.status(200).json({
                     message: 'Profile updated'
