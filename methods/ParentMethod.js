@@ -118,12 +118,6 @@ export const UpdateParentProfile = async (req, res, next) => {
     const guardian_nic = req.session.parent.guardian_nic.guardian_nic;
     const { motherName,fatherName,guardian_name, phone, address,old_password, new_password } = req.body;
 
-    if (!motherName || !fatherName || !guardianName || !phone || !address) {
-        return res.status(400).json({
-            message: 'Please fill all fields'
-        })
-    }
-
     if (new_password.length > 0 || old_password.length > 0) {
         if (!new_password || !old_password) {
             return res.status(400).json({
