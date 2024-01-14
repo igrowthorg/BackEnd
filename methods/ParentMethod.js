@@ -114,6 +114,96 @@ export const GetParentProfile = async (req, res, next) => {
     }
 }
 
+export const UpdateParentProfile = async (req, res, next) => {
+    const guardian_nic = req.session.parent.guardian_nic.guardian_nic;
+    const { motherName,fatherName,guardian_name, phone, address,old_password, new_password } = req.body;
+
+    if (!motherName || !fatherName || !guardian_name || !phone || !address) {
+        return res.status(400).json({
+            message: 'Please fill all fields'
+        })
+    }
+
+    if (new_password.length > 0 || old_password.length > 0) {
+        if (!new_password || !old_password) {
+            return res.status(400).json({
+                message: 'you need provide old_password and new_password'
+            })
+        }
+
+        if (new_password.trim().length < 6) {
+            return res.status(400).json({
+                message: 'password must be at least 6 characters'
+            })
+        }
+
+        try {
+            const [rows] = await pool.query('SELECT password FROM parent WHERE guardian_nic = ? LIMIT 1', [guardian_nic]);
+            if (rows.length > 0) {
+                if (rows[0].password !== old_password) {
+                    return res.status(400).json({
+                        message: 'Old password is incorrect'
+                    })
+                }
+            }
+            else {
+                return res.status(400).json({
+                    message: 'Old password is incorrect'
+                })
+            }
+
+        }
+        catch (err) {
+            return res.status(500).json({
+                message: err.message
+            })
+        }
+
+        //  update data
+        try {
+            const [rows] = await pool.query('UPDATE parent SET mother_name = ?, father_name = ?, guardian_name = ?, phone = ?, address = ?, password = ? WHERE guardian_nic = ?', [motherName, fatherName, guardian_name, phone, address, password, guardian_nic]);
+            if (rows.affectedRows > 0) {
+                return res.status(200).json({
+                    message: 'Profile updated'
+                })
+            }
+            else {
+                return res.status(500).json({
+                    message: 'Profile updating failed'
+                })
+            }
+        }
+        catch (err) {
+            return res.status(500).json({
+                message: err.message
+            })
+        }
+    }
+    else {
+        // not update password
+        try {
+            const [rows] = await pool.query('UPDATE parent SET mother_name = ?, father_name = ?, guardian_name = ?, phone = ?, address = ? WHERE guardian_nic = ?', [motherName, fatherName, guardian_name, phone, address, password, guardian_nic]);
+            if (rows.affectedRows > 0) {
+                return res.status(200).json({
+                    message: 'Profile updated'
+                })
+            }
+            else {
+                return res.status(500).json({
+                    message: 'Profile updating failed'
+                })
+            }
+        }
+        catch (err) {
+            return res.status(500).json({
+                message: err.message
+            })
+        }
+    }
+
+
+}
+
 export const VaccineGetByChild = async(req, res, next) => {
     const { child_id} = req.params;
 
