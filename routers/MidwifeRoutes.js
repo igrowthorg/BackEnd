@@ -79,7 +79,6 @@ router.get('/child/sd_measurements', GetSDMeasurements);
 router.get('/child/vaccine', GetAllVaccine);
 router.get('/child/vaccine/:child_id', GetVaccineTableForChild);
 router.post('/child/vaccine/:child_id/:vaccine_id', VaccineGetByChild);
-router.get('/sad/:vaccine_id', GetChildTableForVaccine);
 
 // Get growth detail chart data
 router.get('/child/growth-detail-chart/:child_id', GetGrowthDetailsChart);
