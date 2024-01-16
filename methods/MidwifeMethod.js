@@ -690,7 +690,6 @@ export const VaccineGetByChild = async (req, res, next) => {
     }
 }
 
-
 export const GetGrowthDetailsChart = async (req, res, next) => {
     const { child_id } = req.params;
 
