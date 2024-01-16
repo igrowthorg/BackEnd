@@ -70,9 +70,6 @@ export const GetParentProfile = async (req, res, next) => {
 
     try {
         let [rows] = await pool.query('SELECT parent.*, area.area_name FROM parent inner join area on parent.area_id = area.area_id WHERE parent.guardian_nic = ? LIMIT 1', [guardian_nic]);
-        rows.forEach(row => {
-            delete row.password;
-        })
         return res.status(200).json(rows[0])
     }
     catch (err) {
@@ -226,7 +223,7 @@ export const GetChildVaccineDetails = async (req, res, next) => {
             vaccine_time_table.map(async(vaccine) => {
                 let {vaccine_timetable_id} = vaccine;
                 let {child_id} = child;
-                let {months_difference} = child;
+                let {months_difference} = month;
 
                 let return_data = {
                     time_table_id: vaccine_timetable_id,
