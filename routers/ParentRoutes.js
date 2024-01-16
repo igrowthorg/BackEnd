@@ -1,7 +1,7 @@
 import express from 'express';
 const router = express.Router();
 import session from 'express-session';
-import { ParentLogin, ParentLogout, CheckParentAuth, UpdateParentProfile, GetParentProfile } from '../methods/ParentMethod.js';
+import { ParentLogin, ParentLogout, CheckParentAuth, UpdateParentProfile, GetParentProfile,GetChildByGuardianNIC,GetChildByID,GetChildVaccineDetails,GetDevActivity,DevMakeAsDone } from '../methods/ParentMethod.js';
 
 router.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
