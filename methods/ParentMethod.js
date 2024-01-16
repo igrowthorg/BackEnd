@@ -201,12 +201,12 @@ export const VaccineGetByChild = async(req, res, next) => {
 
     if(!child_id){
         return res.status(400).json({
-            message: 'Please add params child_id and vaccine_id',
+            message: 'Please add params child_id',
         })
     }
 
     try{
-        const [row] = await pool.query('SELECT taken_vaccine.* FROM taked_vaccine join child on taken_vaccine.child_id =child.child_id WHERE child_id=?', [child_id]);
+        const [row] = await pool.query('SELECT taken_vaccine.* FROM taked_vaccine WHERE child_id=?', [child_id]);
 
         if(row.affectedRows > 0) {
             return res.status(200).json({
@@ -225,40 +225,6 @@ export const VaccineGetByChild = async(req, res, next) => {
         })
     }
 }
-
-
-// export const GetGrowthDetailsChart = async(req, res, next) => {
-//     const { child_id } = req.params;
-
-//     if(!child_id){
-//         return res.status(400).json({
-//             message: 'Please add params child_id',
-//         })
-//     }
-
-//     try{
-//         const [rows] = await pool.query('SELECT * FROM growth_detail WHERE child_id = ?', [child_id]);
-
-//         if(rows.length < 1) return res.status(404).json({message: 'Child growth detail not found'})
-        
-//         let table_data = []
-
-//         rows.forEach(row => {
-//             let data = {
-//                 month: row.month,
-//                 weight: row.weight,
-//             }
-//             table_data.push(data)
-//         })
-
-//         return res.status(200).json(table_data)
-//     }
-//     catch(err) {
-//         return res.status(500).json({
-//             message: err.message
-//         })
-//     }
-// }
 
 export const AddDoneDevelopment = async(req,res,next)=>{
     const { child_id, activity_id } = req.params;
