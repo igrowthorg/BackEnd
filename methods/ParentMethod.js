@@ -65,38 +65,6 @@ export const CheckParentAuth = async(req, res, next) => {
     }
 }
 
-export const GetAllChilds = async(req, res, next) => {
-    try{
-        const [rows] = await pool.query('SELECT parent.*, parent.guardian_nic FROM parent inner join child on parent.guardian_nic = child.parent_id where parent.guardian_nic = ?', [req.session.parent.guardian_nic]);
-        const rests = rows.map((row) => {
-            const { password, ...rest } = row;
-            return rest;
-        })
-        return res.status(200).json(rests)
-    }
-    catch(err) {
-        return res.status(500).json({
-            message: err.message
-        })
-    }
-
-}
-
-export const GetChildByID = async(req, res, next) => {
-    const {child_id} = req.params;
-    try{
-        const [rows] = await pool.query('SELECT * FROM child WHERE child_id = ?', [child_id]);
-        if(rows.length < 1) return res.status(404).json({message: 'Child not found'})
-        const {password, ...rest} = rows[0];
-        return res.status(200).json(rest)
-    }
-    catch(err) {
-        return res.status(500).json({
-            message: err.message
-        })
-    }
-}
-
 export const GetParentProfile = async (req, res, next) => {
     const guardian_nic = req.session.parent.guardian_nic.guardian_nic;
 
