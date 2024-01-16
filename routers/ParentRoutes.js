@@ -37,9 +37,17 @@ router.options('*', (req, res) => res.sendStatus(200));
 router.post('/login', ParentLogin);
 router.post('/logout', ParentLogout);
 router.get('/check-auth', CheckParentAuth);
+
+router.use(checkAuth);
+
 router.get('/profile', GetParentProfile);
 router.put('/profile', UpdateParentProfile);
 
-router.use(checkAuth);
+router.get('/child', GetChildByGuardianNIC)
+router.get('/child/:child_id', GetChildByID)
+router.get('/vaccine/:child_id', GetChildVaccineDetails)
+
+router.get('/dev-activity/:child_id', GetDevActivity)
+router.post('/dev-activity/:child_id/:activity_id', DevMakeAsDone)
 
 export default router;

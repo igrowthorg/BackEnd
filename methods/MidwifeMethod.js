@@ -391,12 +391,11 @@ export const GetLastChildGrowthDetail = async (req, res, next) => {
     }
 
     try {
-        const [rows] = await pool.query('SELECT growth_detail.*, child.child_name, child.area_id FROM growth_detail join child on child.child_id = growth_detail.child_id WHERE growth_detail.child_id = ? ORDER BY month DESC LIMIT 1', [child_id]);
-
+        const [rows] = await pool.query('SELECT growth_detail.*, child.child_name, child.area_id as area_id , TIMESTAMPDIFF(MONTH, child.child_birthday, CURDATE()) AS months_difference FROM growth_detail join child on child.child_id = growth_detail.child_id WHERE growth_detail.child_id = ? ORDER BY month DESC LIMIT 1', [child_id]);
+        
         if (rows.length < 1) {
-
             try {
-                const [child] = await pool.query('SELECT * FROM child WHERE child_id = ?', [child_id]);
+                const [child] = await pool.query('SELECT *, TIMESTAMPDIFF(MONTH, child_birthday, CURDATE()) AS months_difference FROM child WHERE child_id = ?', [child_id]);
                 if (child.length < 1) return res.status(404).json({ message: 'Child not found' })
                 return res.status(200).json({
                     message: 'Child growth detail not found',
@@ -411,15 +410,40 @@ export const GetLastChildGrowthDetail = async (req, res, next) => {
             // return res.status(404).json({message: 'Child growth detail not found'})
         }
 
+        console.log(req.session.midwife.midwife_id.area_id, rows[0].area_id);
         if (req.session.midwife.midwife_id.area_id != rows[0].area_id) {
             return res.status(200).json({
                 message: 'Not privileges'
             })
         }
 
+        console.log(rows[0]);
         return res.status(200).json(rows[0])
     }
     catch (err) {
+        console.log(err);
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const LastGrowthData = async (req, res, next) => {
+    const { child_id } = req.params;
+
+    if (!child_id) {
+        return res.status(400).json({
+            message: 'Please add params child_id',
+        })
+    }
+
+    try {
+        const [rows] = await pool.query('SELECT * FROM growth_detail WHERE child_id = ? ORDER BY month DESC LIMIT 1', [child_id]);
+        if(rows.length < 1) return res.status(200).send([])
+        return res.status(200).json(rows[0])
+    }
+    catch (err) {
+        console.log(err);
         return res.status(500).json({
             message: err.message
         })
@@ -450,23 +474,23 @@ export const GetSDMeasurements = async (req, res, next) => {
         var sixtyMonths_copy = {};
 
         // Create 60 arrays
-        for (var i = 2; i <= 60; i++) {
+        for (var i = 1; i <= 60; i++) {
             sixtyMonths[i] = [];
             sixtyMonths_copy[i] = [];
         }
 
-        console.log(rows);
         // Add data to arrays
         rows.forEach(row => {
-            if (row.months_difference >= 2 && row.months_difference <= 60) sixtyMonths[row.months_difference].push(row);
+            if (row.months_difference >= 1 && row.months_difference <= 60) sixtyMonths[row.months_difference].push(row);
             // console.log(row.months_difference);
         })
+
+        console.log(sixtyMonths);
 
         // Calculate SD
         Object.keys(sixtyMonths).map((key) => {
 
             if (sixtyMonths[key].length > 0) {
-
                 sixtyMonths[key].forEach((row) => {
 
                     let caled_sd = cal_sd(row.months_difference);
@@ -539,7 +563,7 @@ export const GetSDMeasurements = async (req, res, next) => {
                 }
             }
         })
-
+        // console.log(sixtyMonths_copy);
         res.send(sixtyMonths_copy)
     }
     catch (err) {
@@ -690,6 +714,7 @@ export const VaccineGetByChild = async (req, res, next) => {
     }
 }
 
+
 export const GetGrowthDetailsChart = async (req, res, next) => {
     const { child_id } = req.params;
 
@@ -803,52 +828,36 @@ export const DeleteNews = async (req, res, next) => {
     }
 }
 
-export const GetChildTableForVaccine = async (req, res, next) => {
-  const { vaccine_id } = req.params;
-  var CHILD_MAP = [];
+export const GetAllActivities_ = async (req, res, next) => {
+    try {
+        const [rows] = await pool.query('SELECT * FROM activities');
+        return res.status(200).json(rows)
+    }
+    catch (err) {
+        console.log(err);
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
 
-  if (!vaccine_id) {
-    return res.status(400).json({
-      message: "Please add params vaccine_id",
-    });
-  }
+export const GetChildActivities = async (req, res, next) => {
+    const { child_id } = req.params;
 
-  try {
-    const [children] = await pool.query("select *, TIMESTAMPDIFF(MONTH, child_birthday, CURDATE()) AS months_difference from child");
+    if(!child_id){
+        return res.status(400).json({
+            message: 'Please add params child_id',
+        })
+    }
 
-    if (children.length < 1)
-      return res.status(404).json({ message: "Child not d" });
-
-    const [all_vaccine] = await pool.query("select vaccine_timetable.vaccine_month AS vaccine_month from vaccine join vaccine_timetable on vaccine.vaccine_id = vaccine_timetable.vaccine_id where vaccine.vaccine_id = ?",[vaccine_id]);
-
-    if (all_vaccine.length < 1)
-      return res.status(404).json({ message: "Vaccine not found" });
-
-    const vaccine = all_vaccine[0];
-
-    children.forEach((children) => {
-      let return_data = {
-        child_id: children.child_id,
-        child_name: children.child_name,
-        child_gender: children.child_gender,
-        months_difference: children.months_difference,
-      };
-
-      // Check the eligibility of child
-      const eligible = vaccine.vaccine_month <= children.months_difference;
-
-      if (eligible) {
-        return_data = { ...return_data, status: "eligible" };
-      } else {
-        return_data = { ...return_data, status: "not_eligible" };
-      }
-
-      CHILD_MAP.push(return_data);
-    });
-    return res.status(200).json(CHILD_MAP);
-  } catch (err) {
-    return res.status(500).json({
-      message: err.message,
-    });
-  }
-};
+    try {
+        const [rows] = await pool.query('SELECT done_activities.*, child.*, activities.*, TIMESTAMPDIFF(MONTH, child.child_birthday, CURDATE()) AS months_difference FROM done_activities inner join child on child.child_id = done_activities.child_id inner join activities on activities.activity_id = done_activities.activity_id WHERE done_activities.child_id = ?', [child_id]);
+        return res.status(200).json(rows)
+    }
+    catch (err) {
+        console.log(err);
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}

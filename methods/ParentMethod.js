@@ -196,8 +196,122 @@ export const UpdateParentProfile = async (req, res, next) => {
     }
 }
 
-export const VaccineGetByChild = async(req, res, next) => {
-    const { child_id} = req.params;
+export const GetChildByGuardianNIC = async (req, res, next) => {
+    const {guardian_nic} = req.session.parent.parent_id
+    
+    try {
+        const [rows] = await pool.query('SELECT * FROM child WHERE gardian_nic = ?', [guardian_nic]);
+        return res.status(200).json(rows)
+    }
+    catch (err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetChildByID = async (req, res, next) => {
+    const {child_id} = req.params;
+    try {
+        const [rows] = await pool.query('SELECT * FROM child WHERE child_id = ?', [child_id]);
+        return res.status(200).json(rows)
+    }
+    catch (err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetChildVaccineDetails = async (req, res, next) => {
+    const { child_id } = req.params;
+
+    // var VACCINE_MAP = []
+
+    if (!child_id) {
+        return res.status(400).json({
+            message: 'Please add params child_id',
+        })
+    }
+
+    try {
+        let [all_vaccine] = await pool.query(`select vaccine_timetable.*, vaccine.* from vaccine_timetable join vaccine on vaccine.vaccine_id = vaccine_timetable.vaccine_id`);
+
+        if (all_vaccine.length < 1) return res.status(404).json({ message: 'Vaccine not found' })
+
+        const [children] = await pool.query(`select *, TIMESTAMPDIFF(MONTH, child_birthday, CURDATE()) AS months_difference from child where child_id = ?`, [child_id]);
+
+        if (children.length < 1) return res.status(404).json({ message: 'Child not found' })
+
+        const child = children[0];
+
+        const [vaccine_time_table] = await pool.query(`select vaccine_timetable.*, vaccine.* from vaccine_timetable join vaccine on vaccine.vaccine_id = vaccine_timetable.vaccine_id order by vaccine_month ASC`);
+
+
+        // let return_data = {
+        //     vaccine_id: vaccine.vaccine_id,
+        //     vaccine_name: vaccine.vaccine_name,
+        //     vaccine_month: vaccine.vaccine_month,
+        // }
+
+        const VACCINE_MAP = await Promise.all( 
+            vaccine_time_table.map(async(vaccine) => {
+                let {vaccine_timetable_id} = vaccine;
+                let {child_id} = child;
+                let {months_difference} = child;
+
+                let return_data = {
+                    time_table_id: vaccine_timetable_id,
+                    vaccine_id: vaccine.vaccine_id,
+                    vaccine_name: vaccine.vaccine_name,
+                    vaccine_month: vaccine.vaccine_month,
+                }
+
+            try{
+                // check vaccine taken or not
+                const [result] = await pool.query('select * from taked_vaccine where time_table_id = ? and child_id = ?', [vaccine_timetable_id, child_id]);
+                
+                if(result.length > 0){
+                    return_data = {...return_data, status: "taken"}
+                }
+                else{
+                    if(vaccine.vaccine_month <= months_difference){
+                        return_data = {...return_data, status: "eligible"}
+                    }
+                    else{
+                        return_data = {...return_data, status: "not_eligible"}
+                    }
+                }
+
+                
+
+            }
+                catch(err){
+                console.log(err);
+                return res.status(500).json({
+                    message: err.message
+                })
+                }
+
+                // console.log(return_data);
+                return return_data
+            })
+        )
+
+
+        console.log(VACCINE_MAP);
+        return res.status(200).json(VACCINE_MAP)
+
+    }
+    catch (err) {
+        return res.status(500).json({
+            message: err.message
+        })
+    }
+}
+
+export const GetDevActivity = async (req, res, next) => {
+    const { child_id } = req.params;
 
     if(!child_id){
         return res.status(400).json({
@@ -205,113 +319,72 @@ export const VaccineGetByChild = async(req, res, next) => {
         })
     }
 
-    try{
-        const [row] = await pool.query('SELECT taken_vaccine.* FROM taked_vaccine WHERE child_id=?', [child_id]);
+    // Get All Growth Details
+    try {
+        const [activities] = await pool.query('select * from activities');
+        
+        if(activities.length < 1) return res.status(404).json({message: 'Activities not found'})
 
-        if(row.affectedRows > 0) {
-            return res.status(200).json({
-                message: 'Taken vaccines are displayed'
+        // Check child done the activity or not
+        const ACTIVITY_MAP = await Promise.all(
+            activities.map(async(activity) => {
+                try{
+                    // console.log(child_id, activity.activity_id);
+                    const [result] = await pool.query('select * from done_activities where child_id = ? and activity_id = ?', [child_id, activity.activity_id]);
+                    if(result.length > 0){
+                        activity.done = true;
+                    }
+                    else{
+                        activity.done = false;
+                    }
+
+                    return activity;
+                }
+                catch(err){
+                    console.log(err);
+                    return res.status(500).json({
+                        message: err.message
+                    })
+                }
+
             })
-        }
-        else {
-            return res.status(500).json({
-                message: 'Display aken vaccines is failed'
-            })
-        }
+        )
+
+        return res.status(200).json(ACTIVITY_MAP)
+
     }
-    catch(err) {
+    catch (err) {
         return res.status(500).json({
             message: err.message
         })
     }
 }
 
-export const AddDoneDevelopment = async(req,res,next)=>{
+export const DevMakeAsDone = async (req, res, next) => {
     const { child_id, activity_id } = req.params;
 
     if(!child_id || !activity_id){
         return res.status(400).json({
-            message: 'Please add params child_id and vaccine_id',
+            message: 'Please add params child_id and activity_id',
         })
     }
 
     try{
-        const [row] = await pool.query('INSERT INTO done_development(child_id, activity_id) VALUES (?, ?)', [child_id, activity_id]);
-
-        if(row.affectedRows > 0) {
+        const [result] = await pool.query('select * from done_activities where child_id = ? and activity_id = ?', [child_id, activity_id]);
+        if(result.length > 0){
+            return res.status(400).json({
+                message: 'Already done'
+            })
+        }
+        else{
+            await pool.query('insert into done_activities (child_id, activity_id) values (?, ?)', [child_id, activity_id]);
             return res.status(200).json({
-                message: 'Done development activities are added'
-            })
-        }
-        else {
-            return res.status(500).json({
-                message: 'Add done development activities is failed'
+                message: 'Done'
             })
         }
     }
-    catch(err) {
-        return res.status(500).json({
-            message: err.message
-        })
-    }
-}
-
-export const GetDevelopmentActivitiesForChild = async(req, res, next) => {
-    const { child_id } = req.params;
-
-    var Development_MAP = []
-
-    if(!child_id){
-        return res.status(400).json({
-            message: 'Please add params child_id',
-        })
-    }
-
-    try{
-        let [all_developmentActivities] = await pool.query(`select development.*, done_development.* from done_development join development on development.activity_id=done_development.activity_id`);
-        
-        if(all_developmentActivities.length < 1) return res.status(404).json({message: 'Vaccine not found'})
-
-        const [children] = await pool.query(`select *, TIMESTAMPDIFF(MONTH, child_birthday, CURDATE()) AS months_difference from child where child_id = ?`, [child_id]);
-        
-        if(children.length < 1) return res.status(404).json({message: 'Child not found'})
-
-        const child = children[0];
-
-        let[done_development] = await pool.query(`select * from done_development where child_id = ?`, [child_id]);
-
-
-        all_developmentActivities.forEach(development => {
-
-            let return_data = {
-                activity_id: development.activity_id,
-                activity_name: development.activity_name,
-                activity_month: development.activity_name,
-            }
-
-            // Check whether the eligible for development
-            const eligible = development.activity_month <= child.months_difference;
-            console.log(development);
-            // Check whether the vaccine has been taken
-            const done = done_development.find(done => done.activity_id == development.activity_id);
-
-            if(done) {
-                return_data = {...return_data, status: "done"}
-            }
-            else if(eligible) {
-                return_data = {...return_data, status: "eligible"}
-            }
-            else {
-                return_data = {...return_data, status: "not_eligible"}
-            }
-
-            Development_MAP.push(return_data);
-            
-        })
-
-        return res.status(200).json(Development_MAP)
-    }
-    catch(err) {
+    catch(err){
+        console.log(err);
         return res.status(500).json({
             message: err.message
         })
