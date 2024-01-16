@@ -314,9 +314,6 @@ export const GetDevelopmentActivitiesForChild = async(req, res, next) => {
 
         let[done_development] = await pool.query(`select * from done_development where child_id = ?`, [child_id]);
 
-        // all_vaccine
-        // child
-        // take_vaccine
 
         all_developmentActivities.forEach(development => {
 
