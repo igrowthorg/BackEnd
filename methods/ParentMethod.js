@@ -70,6 +70,9 @@ export const GetParentProfile = async (req, res, next) => {
 
     try {
         let [rows] = await pool.query('SELECT parent.*, area.area_name FROM parent inner join area on parent.area_id = area.area_id WHERE parent.guardian_nic = ? LIMIT 1', [guardian_nic]);
+        rows.forEach(row => {
+            delete row.password;
+        })
         return res.status(200).json(rows[0])
     }
     catch (err) {
@@ -162,10 +165,10 @@ export const UpdateParentProfile = async (req, res, next) => {
 }
 
 export const GetChildByGuardianNIC = async (req, res, next) => {
-    const {guardian_nic} = req.session.parent.parent_id
+    const {guardian_nic} = req.session.parent.guardian_nic
     
     try {
-        const [rows] = await pool.query('SELECT * FROM child WHERE gardian_nic = ?', [guardian_nic]);
+        const [rows] = await pool.query('SELECT child.*, parent.guardian_name, parent.address FROM child inner join parent on child.gardian_nic = parent.guardian_nic WHERE guardian_nic = ?', [guardian_nic]);
         return res.status(200).json(rows)
     }
     catch (err) {
@@ -223,7 +226,7 @@ export const GetChildVaccineDetails = async (req, res, next) => {
             vaccine_time_table.map(async(vaccine) => {
                 let {vaccine_timetable_id} = vaccine;
                 let {child_id} = child;
-                let {months_difference} = month;
+                let {months_difference} = child;
 
                 let return_data = {
                     time_table_id: vaccine_timetable_id,
